@@ -7,9 +7,8 @@
         stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M126 150l64 62" fill="none" stroke="#1fcecb" stroke-width="25"
         stroke-linecap="round"/>
-  <path d="M56 60h26v128H56z" fill="#f3faf7"/>
-  <path d="M56 60h8v128h-8z" fill="#9be9dd"/>
-  <path d="M56 51h26v16H56z" fill="#52a7a6"/>
-  <path d="M56 188h26l-13 30z" fill="#f2b76e"/>
-  <path d="M64 207h10l-5 11z" fill="#123445"/>
+  <path d="M55 42h29v150H55z" fill="#f3faf7"/>
+  <path d="M55 42h9v150h-9z" fill="#9be9dd"/>
+  <path d="M55 192h29l-14.5 33z" fill="#f2b76e"/>
+  <path d="M65 215h9l-4.5 10z" fill="#000000"/>
 </svg>
