@@ -1559,6 +1559,7 @@ def main() -> int:
     app = QApplication.instance() or QApplication([])
     app.setApplicationName("Rever")
     app.setOrganizationName("PDFReaderTTS")
+    app.setWindowIcon(QIcon(str(ICON_ROOT / "rever.svg")))
     window = MainWindow()
     window.show()
     return app.exec()

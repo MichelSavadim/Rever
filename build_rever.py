@@ -19,6 +19,7 @@ def main() -> int:
     command = [
         sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
         "--onefile", "--windowed", "--name", "Rever",
+        "--icon", "pdf_reader/assets/icons/rever.ico",
         "--add-data", "README.md:.",
         "--add-data", "pdf_reader/assets/icons:pdf_reader/assets/icons",
         "--collect-all", "imageio_ffmpeg",

@@ -22,4 +22,4 @@ rever = "pdf_reader.bootstrap:main"
 include = ["pdf_reader*"]
 
 [tool.setuptools.package-data]
-pdf_reader = ["assets/icons/*.svg"]
+pdf_reader = ["assets/icons/*.svg", "assets/icons/*.png", "assets/icons/*.ico"]

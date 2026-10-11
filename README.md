@@ -48,6 +48,8 @@ No PowerShell, com as dependências do projeto já instaladas:
 
 O arquivo final fica em `Rever.exe`, na raiz do projeto. Ele inclui Python, bibliotecas, ícones e README; não é necessário instalar Python no computador que vai executá-lo. Ao ser executado na raiz, ele usa a pasta `data/library` existente e grava os logs em `logs`. PDFs e MP3s da biblioteca não são embutidos no EXE. Se você levar o executável para outra pasta, copie também a pasta `data` para preservar a biblioteca. A pasta do executável precisa permitir escrita. A geração de voz continua exigindo internet.
 
+O ícone do aplicativo está em `pdf_reader/assets/icons/rever.svg`. Para atualizar as versões PNG e ICO após editar o SVG, execute `.\.venv\Scripts\python.exe tools\make_icon.py` antes de gerar o executável.
+
 ## Limitações desta versão
 
 - PDF digitalizado sem texto selecionável precisa de OCR e não é importado.
