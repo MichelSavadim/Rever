@@ -26,12 +26,14 @@ from .core import (
     write_json,
 )
 from . import diagnostics
+from .paths import data_root, resource_root
 from .timing import DurationTimeline
 from .timing import is_speakable
 from .viewer import PdfPageView
 
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = data_root()
+RESOURCE_ROOT = resource_root()
 ICON_ROOT = Path(__file__).resolve().parent / "assets" / "icons"
 
 
@@ -1362,7 +1364,7 @@ class MainWindow(QMainWindow):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.book.folder)))
 
     def open_readme(self) -> None:
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(PROJECT_ROOT / "README.md")))
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(RESOURCE_ROOT / "README.md")))
 
     def show_shortcuts(self) -> None:
         QMessageBox.information(

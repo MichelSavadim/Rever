@@ -37,6 +37,17 @@ O leitor guarda a última página vista e o parágrafo selecionado ou reproduzid
 
 Em **Arquivo → Excluir PDF selecionado da biblioteca**, escolha entre ocultá-lo da biblioteca mantendo o PDF importado, os áudios e o ponto de leitura, ou apagar toda a pasta desse PDF. Se ocultar, importar o mesmo PDF novamente recupera os arquivos preservados.
 
+## Gerar um executável para Windows
+
+No PowerShell, com as dependências do projeto já instaladas:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install pyinstaller
+& '.\Gerar EXE.cmd'
+```
+
+O arquivo final fica em `dist/Rever.exe`. Ele inclui Python, bibliotecas, ícones e README; não é necessário instalar Python no computador que vai executá-lo. Deixe o EXE em uma pasta com permissão de escrita: ele criará `data/library` e `logs` ao lado dele. PDFs e MP3s da biblioteca atual não são embutidos no EXE. Para levar a biblioteca existente, copie a pasta `data` do projeto para a mesma pasta do executável. A geração de voz continua exigindo internet.
+
 ## Limitações desta versão
 
 - PDF digitalizado sem texto selecionável precisa de OCR e não é importado.

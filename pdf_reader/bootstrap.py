@@ -18,5 +18,6 @@ def main() -> int:
         kind, value, tb = sys.exc_info()
         assert kind is not None and value is not None
         diagnostics.log_exception(kind, value, tb, "Falha na inicialização ou execução")
-        print(f"Relatório de falha: {log_path}", file=sys.__stderr__)
+        if sys.__stderr__ is not None:
+            print(f"Relatório de falha: {log_path}", file=sys.__stderr__)
         return 1

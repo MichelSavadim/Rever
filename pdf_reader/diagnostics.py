@@ -14,6 +14,8 @@ from pathlib import Path
 from types import TracebackType
 from typing import TextIO
 
+from .paths import data_root
+
 
 LOG_PATH: Path | None = None
 _stream: TextIO | None = None
@@ -47,12 +49,14 @@ def log_exception(
     _had_exception = True
     with _lock:
         if _stream is None:
-            traceback.print_exception(kind, value, tb, file=sys.__stderr__)
+            if sys.__stderr__ is not None:
+                traceback.print_exception(kind, value, tb, file=sys.__stderr__)
             return
         _stream.write(f"[{_stamp()}] {source}\n")
         traceback.print_exception(kind, value, tb, file=_stream)
         _stream.flush()
-    traceback.print_exception(kind, value, tb, file=sys.__stderr__)
+    if sys.__stderr__ is not None:
+        traceback.print_exception(kind, value, tb, file=sys.__stderr__)
 
 
 def _thread_exception(args: threading.ExceptHookArgs) -> None:
@@ -81,7 +85,7 @@ def install(log_dir: Path | None = None) -> Path:
         return LOG_PATH
     directory = Path(
         log_dir or os.environ.get("PDF_READER_LOG_DIR")
-        or Path(__file__).resolve().parent.parent / "logs"
+        or data_root() / "logs"
     )
     directory.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
