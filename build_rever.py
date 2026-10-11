@@ -22,7 +22,7 @@ def main() -> int:
         "--add-data", "README.md:.",
         "--add-data", "pdf_reader/assets/icons:pdf_reader/assets/icons",
         "--collect-all", "imageio_ffmpeg",
-        "--workpath", "build", "--distpath", "dist", "run_rever.py",
+        "--workpath", "build", "--distpath", ".", "run_rever.py",
     ]
     return subprocess.call(command, cwd=root, env=environment)
 

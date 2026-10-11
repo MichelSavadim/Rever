@@ -46,7 +46,7 @@ No PowerShell, com as dependências do projeto já instaladas:
 & '.\Gerar EXE.cmd'
 ```
 
-O arquivo final fica em `dist/Rever.exe`. Ele inclui Python, bibliotecas, ícones e README; não é necessário instalar Python no computador que vai executá-lo. Deixe o EXE em uma pasta com permissão de escrita: ele criará `data/library` e `logs` ao lado dele. PDFs e MP3s da biblioteca atual não são embutidos no EXE. Para levar a biblioteca existente, copie a pasta `data` do projeto para a mesma pasta do executável. A geração de voz continua exigindo internet.
+O arquivo final fica em `Rever.exe`, na raiz do projeto. Ele inclui Python, bibliotecas, ícones e README; não é necessário instalar Python no computador que vai executá-lo. Ao ser executado na raiz, ele usa a pasta `data/library` existente e grava os logs em `logs`. PDFs e MP3s da biblioteca não são embutidos no EXE. Se você levar o executável para outra pasta, copie também a pasta `data` para preservar a biblioteca. A pasta do executável precisa permitir escrita. A geração de voz continua exigindo internet.
 
 ## Limitações desta versão
 

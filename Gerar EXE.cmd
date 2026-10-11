@@ -24,5 +24,5 @@ if errorlevel 1 (
 )
 
 echo.
-echo Executavel gerado em dist\Rever.exe
+echo Executavel gerado em Rever.exe
 pause
