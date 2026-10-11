@@ -59,8 +59,20 @@ class PlayerFlowTest(unittest.TestCase):
                 window.theme_action.setChecked(True)
                 self.assertTrue(window.viewer._dark_theme)
                 self.assertTrue(window.settings.value("dark_theme", False, type=bool))
+                self.assertEqual(
+                    window.transport_icons["play"].pixmap(22, 22).toImage().pixelColor(10, 11).name(),
+                    "#ffffff",
+                )
+                window.on_playback_state(QMediaPlayer.PlaybackState.PlayingState)
                 window.theme_action.setChecked(False)
                 self.assertFalse(window.viewer._dark_theme)
+                self.assertEqual(
+                    window.transport_icons["play"].pixmap(22, 22).toImage().pixelColor(10, 11).name(),
+                    "#192334",
+                )
+                self.assertEqual(window.play_pause_button.icon().cacheKey(),
+                                 window.transport_icons["pause"].cacheKey())
+                window.on_playback_state(QMediaPlayer.PlaybackState.PausedState)
 
                 window.viewer_page_input.setText("2")
                 window.goto_viewer_page()

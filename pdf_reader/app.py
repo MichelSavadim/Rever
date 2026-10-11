@@ -10,7 +10,7 @@ from threading import Event, Thread, current_thread
 
 import pymupdf
 from PySide6.QtCore import QEasingCurve, QObject, QSettings, QSize, QTimer, Qt, QUrl, QVariantAnimation, Signal, Slot
-from PySide6.QtGui import QAction, QDesktopServices, QIcon, QPixmap
+from PySide6.QtGui import QAction, QColor, QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
     QApplication, QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
@@ -158,6 +158,7 @@ class MainWindow(QMainWindow):
         self.dragging = False
         self.session_ms = 0
         self.session_since: float | None = None
+        self.playback_is_playing = False
         self.thread: Thread | None = None
         self.worker: GenerationWorker | None = None
         self.generation_mode: str | None = None
@@ -438,10 +439,8 @@ class MainWindow(QMainWindow):
         timeline.addWidget(self.total)
         player_box.addLayout(timeline)
         controls = QHBoxLayout()
-        self.transport_icons = {name: QIcon(str(ICON_ROOT / f"{name}.svg")) for name in (
-            "play", "pause", "back_10", "forward_10", "previous_paragraph",
-            "next_paragraph", "previous_page", "next_page",
-        )}
+        self.transport_icons: dict[str, QIcon] = {}
+        self.transport_buttons: dict[str, QPushButton] = {}
         for icon_name, description, callback in (
             ("previous_page", "Voltar uma página", self.previous_page_audio),
             ("previous_paragraph", "Voltar um parágrafo", self.previous_paragraph),
@@ -453,13 +452,13 @@ class MainWindow(QMainWindow):
         ):
             button = QPushButton()
             button.setObjectName("transportButton")
-            button.setIcon(self.transport_icons[icon_name])
             button.setIconSize(QSize(22, 22))
             button.setFixedSize(42, 36)
             button.setToolTip(description)
             button.setAccessibleName(description)
             button.clicked.connect(callback)
             controls.addWidget(button)
+            self.transport_buttons[icon_name] = button
             if icon_name == "play":
                 self.play_pause_button = button
         controls.addStretch()
@@ -682,10 +681,14 @@ class MainWindow(QMainWindow):
             background, foreground, panel, border = "#191d24", "#eef2f7", "#242a34", "#414b59"
             button, hover, checked, selected = "#303946", "#3b4d65", "#355579", "#31557c"
             muted = "#9ba8b7"
+            transport_background, transport_hover, transport_border = "#355579", "#4673a1", "#274766"
+            icon_color = "#ffffff"
         else:
             background, foreground, panel, border = "#f6f7f9", "#192334", "#ffffff", "#dfe4ea"
             button, hover, checked, selected = "#e9edf2", "#dce8f8", "#c8dcfa", "#dbeafe"
             muted = "#777f89"
+            transport_background, transport_hover, transport_border = button, hover, border
+            icon_color = foreground
         self.setStyleSheet(f"""
             QMainWindow, QWidget {{ background: {background}; color: {foreground}; font-size: 13px; }}
             QFrame#panel {{ background: {panel}; border: 1px solid {border}; border-radius: 8px; }}
@@ -696,8 +699,8 @@ class MainWindow(QMainWindow):
             QPushButton:hover {{ background: {hover}; }}
             QPushButton:checked {{ background: {checked}; border-color: #6a9cdb; }}
             QPushButton:disabled {{ color: {muted}; }}
-            QPushButton#transportButton {{ background: #355579; border-color: #274766; }}
-            QPushButton#transportButton:hover {{ background: #4673a1; }}
+            QPushButton#transportButton {{ background: {transport_background}; border-color: {transport_border}; }}
+            QPushButton#transportButton:hover {{ background: {transport_hover}; }}
             QLineEdit, QSpinBox, QComboBox {{ background: {panel}; color: {foreground};
                                             border: 1px solid {border}; padding: 3px; }}
             QListWidget {{ border: none; background: {panel}; }}
@@ -709,7 +712,23 @@ class MainWindow(QMainWindow):
             QProgressBar {{ background: {panel}; color: {foreground}; border: 1px solid {border}; }}
             QProgressBar::chunk {{ background: #3b82f6; }}
         """)
+        self.update_transport_icons(icon_color)
         self.viewer.set_dark_theme(dark)
+
+    def update_transport_icons(self, color: str) -> None:
+        self.transport_icons = {}
+        for name in (*self.transport_buttons, "pause"):
+            pixmap = QIcon(str(ICON_ROOT / f"{name}.svg")).pixmap(64, 64)
+            painter = QPainter(pixmap)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+            painter.fillRect(pixmap.rect(), QColor(color))
+            painter.end()
+            self.transport_icons[name] = QIcon(pixmap)
+            if name != "play" and name in self.transport_buttons:
+                self.transport_buttons[name].setIcon(self.transport_icons[name])
+        self.play_pause_button.setIcon(
+            self.transport_icons["pause" if self.playback_is_playing else "play"]
+        )
 
     def set_dark_theme(self, enabled: bool) -> None:
         self.settings.setValue("dark_theme", enabled)
@@ -1397,6 +1416,7 @@ class MainWindow(QMainWindow):
 
     def on_playback_state(self, state: QMediaPlayer.PlaybackState) -> None:
         playing = state == QMediaPlayer.PlaybackState.PlayingState
+        self.playback_is_playing = playing
         self.play_pause_button.setIcon(self.transport_icons["pause" if playing else "play"])
         self.play_pause_button.setToolTip("Pausar" if playing else "Reproduzir")
         self.play_pause_button.setAccessibleName("Pausar" if playing else "Reproduzir")
