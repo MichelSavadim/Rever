@@ -18,7 +18,7 @@ from PySide6.QtCore import QPoint, QPointF, QTimer
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from pdf_reader.app import MainWindow, clock
+from pdf_reader.app import MainWindow, clock, generation_error_message
 from pdf_reader.core import audio_path
 from pdf_reader.viewer import PdfPageView
 
@@ -34,6 +34,14 @@ def pump_until(app, predicate, timeout=8):
 
 
 class PlayerFlowTest(unittest.TestCase):
+    def test_edge_tts_403_has_readable_message(self):
+        error = RuntimeError("403, url=wss://speech.platform.bing.com/secret")
+        error.status = 403
+        message = generation_error_message(error)
+        self.assertIn("Edge TTS", message)
+        self.assertIn("HTTP 403", message)
+        self.assertNotIn("wss://", message)
+
     def test_theme_viewer_page_and_pdf_search_without_playback(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

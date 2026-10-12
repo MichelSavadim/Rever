@@ -56,6 +56,7 @@ O ícone do aplicativo está em `pdf_reader/assets/icons/rever.svg`. Para atuali
 - Os blocos de texto do PDF são tratados como parágrafos. Alguns layouts, especialmente colunas, cabeçalhos e tabelas, podem exigir ajuste manual em uma versão futura.
 - Pontilhados longos de sumários são resumidos para o TTS e para a estimativa. Blocos compostos apenas por escrita não suportada pelas vozes disponíveis são ignorados na narração e continuam visíveis no PDF.
 - Edge TTS usa um serviço online. A reprodução dos MP3 já gerados funciona sem internet.
+- Se a geração mostrar HTTP 403, o serviço Edge TTS recusou a conexão de áudio. A biblioteca de PDFs e os MP3 já salvos continuam disponíveis; tente novamente mais tarde ou em outra rede. O detalhe técnico fica no crashlog da sessão.
 - A velocidade de reprodução altera apenas o player; arquivos exportados usam a velocidade original da voz.
 - A visualização mostra as páginas em sequência, com rolagem contínua. As setas da barra de ferramentas saltam para a página anterior ou seguinte.
 - A barra do player representa o progresso no PDF inteiro. A duração total é estimada a partir do texto na importação e corrigida conforme os MP3s reais são gerados. O tempo da barra considera a velocidade de reprodução; o campo "Ouvido" soma o tempo da sessão entre parágrafos e pausa junto com o áudio. Por ser uma estimativa, o total pode mudar durante a leitura; a duração exata só é conhecida após gerar todos os trechos.

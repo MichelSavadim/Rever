@@ -37,6 +37,17 @@ RESOURCE_ROOT = resource_root()
 ICON_ROOT = Path(__file__).resolve().parent / "assets" / "icons"
 
 
+def generation_error_message(error: Exception) -> str:
+    if getattr(error, "status", None) == 403:
+        return (
+            "O serviço Edge TTS recusou a conexão de áudio (HTTP 403). "
+            "O PDF e a voz selecionada não causaram a falha. "
+            "Tente novamente mais tarde ou usando outra rede. "
+            "Os áudios já gerados continuam disponíveis."
+        )
+    return str(error)
+
+
 def clock(milliseconds: int) -> str:
     seconds = max(0, milliseconds // 1000)
     return f"{seconds // 3600:02d}:{seconds // 60 % 60:02d}:{seconds % 60:02d}"
@@ -125,7 +136,7 @@ class GenerationWorker(QObject):
             self.completed.emit("")
         except Exception as exc:
             diagnostics.log_exception(type(exc), exc, exc.__traceback__, "Erro na geração de áudio")
-            self.failed.emit(str(exc))
+            self.failed.emit(generation_error_message(exc))
         finally:
             self.finished.emit()
 

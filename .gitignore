@@ -9,4 +9,5 @@ logs/
 build/
 dist/
 /Rever.exe
+/Rever-atualizado.exe
 *.spec
