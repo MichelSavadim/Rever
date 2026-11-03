@@ -1,3 +1,10 @@
+## Número da versão antes de qualquer trabalho
+
+- Em toda instrução futura do usuário para trabalhar neste projeto, se ele não informar explicitamente o número da versão de destino, pergunte qual versão deve receber o trabalho e aguarde a resposta antes de executar a tarefa. Isso inclui alterações de código, correções, interface, documentação, builds, executáveis e publicações.
+- Para pedidos de commit, use a última versão de destino informada pelo usuário na conversa ou tarefa atual. Pergunte a versão apenas se ainda não houver uma versão informada.
+- Nunca presuma que a próxima alteração pertence à versão atual nem escolha ou incremente o número por conta própria.
+- Perguntas puramente informativas, que não peçam trabalho no projeto, não exigem número de versão.
+
 Esse projeto vai consistir num leitor de PDF. Basicamente, de inicio ele vai ter 2 funçoes:
 
 
@@ -27,3 +34,6 @@ OBS: Crie um arquivo AGENTS.md com esse prompt na raíz do projeto. Antes de com
 - Cada PDF guarda a última página vista e o parágrafo selecionado ou reproduzido em `reader_state.json`. Ao trocar de arquivo ou reabrir o aplicativo, restaura a página vista por último e mantém o parágrafo para retomar o Play; também reabre o último PDF ativo. A opção de excluir no menu Arquivo permite ocultar apenas da biblioteca, preservando os arquivos para reimportação, ou apagar a pasta completa do PDF, incluindo áudios e estado de leitura.
 - O menu Exibir oferece tema escuro persistente. Na barra do visualizador, Ajustar largura encaixa a página na largura disponível; um campo permite ir diretamente a uma página sem iniciar áudio; a pesquisa de texto no PDF usa Ctrl+F e navega entre resultados destacados.
 - O player usa ícones SVG para Play/Pause, saltos de 10 segundos, parágrafo e página; Play e Pause alternam conforme o estado do áudio. Os painéis laterais abrem e fecham com animação, e a seta de reabertura permanece no alto, próxima da margem.
+- O Edge TTS foi substituído pelo Piper para gerar áudio localmente sem internet. A voz padrão é Cadu em português brasileiro; modelos de inglês e espanhol podem ser instalados separadamente. O aplicativo converte a saída WAV do Piper em MP3 e mantém o fluxo de reprodução e exportação por parágrafo.
+- As vozes brasileiras Faber e Jeff (modelos médios) e Edresson (modelo baixo) também podem ser escolhidas nas preferências quando instaladas. A build inclui os modelos presentes em `data/models`.
+- O Qwen3-TTS é uma opção local gratuita, instalada separadamente em `.venv-qwen` com o modelo 0.6B CustomVoice em `data/models`. As vozes Ryan e Serena podem ser usadas para gerar MP3 por parágrafo e exportação; o modelo permanece fora do EXE.

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import json
 import os
@@ -13,27 +12,12 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
 
-import edge_tts
 import imageio_ffmpeg
 import pymupdf
 
+from .local_tts import VOICES, synthesize_mp3
+from .qwen_backend import is_qwen_voice, synthesize_mp3 as synthesize_qwen_mp3
 from .timing import is_speakable, normalize_speech_text, write_initial_timing
-
-
-VOICES = {
-    "Português (Brasil)": {
-        "Francisca": "pt-BR-FranciscaNeural",
-        "Antônio": "pt-BR-AntonioNeural",
-    },
-    "English (US)": {
-        "Aria": "en-US-AriaNeural",
-        "Guy": "en-US-GuyNeural",
-    },
-    "Español (España)": {
-        "Elvira": "es-ES-ElviraNeural",
-        "Álvaro": "es-ES-AlvaroNeural",
-    },
-}
 
 
 class GenerationCancelled(Exception):
@@ -240,7 +224,7 @@ def write_json(path: Path, data: object) -> None:
     os.replace(temporary, path)
 
 
-async def generate_audio(
+def generate_audio(
     book: Book,
     paragraphs: list[Paragraph],
     voice: str,
@@ -265,11 +249,15 @@ async def generate_audio(
                 if reusable and reusable.is_file():
                     shutil.copy2(reusable, part_file)
                 else:
-                    await edge_tts.Communicate(normalize_speech_text(paragraph.text), voice).save(str(part_file))
+                    speech_text = normalize_speech_text(paragraph.text)
+                    if is_qwen_voice(voice):
+                        synthesize_qwen_mp3(speech_text, voice, part_file, cancelled)
+                    else:
+                        synthesize_mp3(speech_text, voice, part_file)
                 if cancelled():
                     return
                 if part_file.stat().st_size == 0:
-                    raise RuntimeError("O serviço TTS retornou um arquivo vazio.")
+                    raise RuntimeError("O gerador de voz criou um arquivo de áudio vazio.")
                 os.replace(part_file, target)
             finally:
                 part_file.unlink(missing_ok=True)
@@ -332,4 +320,4 @@ def run_generation(
     progress: Callable[[int, int], None], *, temporary: bool = False,
     cancelled: Callable[[], bool] = lambda: False,
 ) -> None:
-    asyncio.run(generate_audio(book, paragraphs, voice, progress, temporary=temporary, cancelled=cancelled))
+    generate_audio(book, paragraphs, voice, progress, temporary=temporary, cancelled=cancelled)

@@ -1,4 +1,5 @@
 .venv/
+.venv-qwen/
 .tmp/
 __pycache__/
 *.py[cod]
@@ -10,4 +11,8 @@ build/
 dist/
 /Rever.exe
 /Rever-atualizado.exe
+/Rever-*.exe*
+/output/
+/tmp/
+/.codex-remote-attachments/
 *.spec

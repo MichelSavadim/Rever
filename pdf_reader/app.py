@@ -9,7 +9,7 @@ from pathlib import Path
 from threading import Event, Thread, current_thread
 
 import pymupdf
-from PySide6.QtCore import QEasingCurve, QObject, QSettings, QSize, QTimer, Qt, QUrl, QVariantAnimation, Signal, Slot
+from PySide6.QtCore import QEasingCurve, QEvent, QObject, QSettings, QSize, QTimer, Qt, QUrl, QVariantAnimation, Signal, Slot
 from PySide6.QtGui import QAction, QColor, QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtMultimedia import QAudioOutput, QMediaPlayer
 from PySide6.QtWidgets import (
@@ -20,31 +20,28 @@ from PySide6.QtWidgets import (
 )
 
 from .core import (
-    VOICES, Book, GenerationCancelled, Library, Paragraph, audio_path,
+    Book, GenerationCancelled, Library, Paragraph, audio_path,
     clear_all_temporary, clear_temporary,
     export_audio, load_paragraphs, playable_audio_path, run_generation,
     write_json,
 )
 from . import diagnostics
 from .paths import data_root, resource_root
+from .local_tts import DEFAULT_VOICE, installed_voices, model_path
+from .qwen_backend import installed_voices as installed_qwen_voices, is_qwen_voice, shutdown as stop_qwen
 from .timing import DurationTimeline
 from .timing import is_speakable
 from .viewer import PdfPageView
+from .sync_server import SyncServer, new_token, state_timestamp
 
 
 PROJECT_ROOT = data_root()
+QWEN_IDLE_RELEASE_MS = 60_000
 RESOURCE_ROOT = resource_root()
 ICON_ROOT = Path(__file__).resolve().parent / "assets" / "icons"
 
 
 def generation_error_message(error: Exception) -> str:
-    if getattr(error, "status", None) == 403:
-        return (
-            "O serviço Edge TTS recusou a conexão de áudio (HTTP 403). "
-            "O PDF e a voz selecionada não causaram a falha. "
-            "Tente novamente mais tarde ou usando outra rede. "
-            "Os áudios já gerados continuam disponíveis."
-        )
     return str(error)
 
 
@@ -60,13 +57,15 @@ class PreferencesDialog(QDialog):
         self.setMinimumWidth(340)
         layout = QVBoxLayout(self)
         form = QFormLayout()
+        self.voices = installed_voices()
+        self.voices.setdefault("Português (Brasil)", {}).update(installed_qwen_voices())
         self.language = QComboBox()
-        self.language.addItems(VOICES)
+        self.language.addItems(self.voices)
         self.voice = QComboBox()
         form.addRow("Idioma da voz", self.language)
         form.addRow("Voz", self.voice)
         layout.addLayout(form)
-        layout.addWidget(QLabel("O Edge TTS requer internet para gerar novos áudios."))
+        layout.addWidget(QLabel("Piper e Qwen geram áudio localmente. Para adicionar vozes, consulte o README."))
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -74,15 +73,18 @@ class PreferencesDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
         self.language.currentTextChanged.connect(self.populate_voices)
-        language = settings.value("language", "Português (Brasil)")
-        self.language.setCurrentText(language if language in VOICES else "Português (Brasil)")
+        saved_voice = settings.value("voice", DEFAULT_VOICE)
+        known_voices = {code for group in self.voices.values() for code in group.values()}
+        language = (settings.value("language", "Português (Brasil)")
+                    if saved_voice in known_voices else "Português (Brasil)")
+        self.language.setCurrentText(language if language in self.voices else "Português (Brasil)")
         self.populate_voices(self.language.currentText())
-        index = self.voice.findData(settings.value("voice", "pt-BR-FranciscaNeural"))
+        index = self.voice.findData(settings.value("voice", DEFAULT_VOICE))
         self.voice.setCurrentIndex(max(index, 0))
 
     def populate_voices(self, language: str) -> None:
         self.voice.clear()
-        for name, code in VOICES[language].items():
+        for name, code in self.voices[language].items():
             self.voice.addItem(name, code)
 
 
@@ -147,6 +149,13 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Rever")
         self.resize(1370, 850)
         self.settings = QSettings("PDFReaderTTS", "PDFReaderTTS")
+        self._konami = [Qt.Key.Key_Up, Qt.Key.Key_Up, Qt.Key.Key_Down, Qt.Key.Key_Down,
+                        Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Left, Qt.Key.Key_Right,
+                        Qt.Key.Key_B, Qt.Key.Key_A]
+        self._konami_position = 0
+        self.sync_server: SyncServer | None = None
+        self.last_state_stamp = 0
+        QApplication.instance().installEventFilter(self)
         library_root = Path(os.environ.get("PDF_READER_LIBRARY", PROJECT_ROOT / "data" / "library"))
         self.library = Library(library_root)
         if not os.environ.get("PDF_READER_LIBRARY"):
@@ -203,8 +212,16 @@ class MainWindow(QMainWindow):
         self.export_timer = QTimer(self)
         self.export_timer.setInterval(1000)
         self.export_timer.timeout.connect(self.update_export_times)
+        self.qwen_idle_timer = QTimer(self)
+        self.qwen_idle_timer.setSingleShot(True)
+        self.qwen_idle_timer.timeout.connect(self.release_idle_qwen)
         self.build_ui()
         self.load_books(self.library.last_book_id())
+        if self.settings.value("sync_enabled", False, type=bool):
+            QTimer.singleShot(0, self.start_sync_server)
+        self.sync_state_timer = QTimer(self)
+        self.sync_state_timer.timeout.connect(self.check_remote_state)
+        self.sync_state_timer.start(2000)
         QTimer.singleShot(0, lambda: self.horizontal_splitter.setSizes([230, 820, 300]))
         QTimer.singleShot(0, lambda: self.vertical_splitter.setSizes([640, 150]))
 
@@ -512,6 +529,9 @@ class MainWindow(QMainWindow):
         settings_action.setShortcut("Ctrl+,")
         settings_action.triggered.connect(self.open_preferences)
         settings_menu.addAction("Atalhos de teclado…", self.show_shortcuts)
+        self.developer_action = settings_menu.addAction("Opções de desenvolvedor…")
+        self.developer_action.setVisible(self.settings.value("developer_options", False, type=bool))
+        self.developer_action.triggered.connect(self.open_developer_options)
         play_shortcut = QAction(self)
         play_shortcut.setShortcut("Ctrl+Space")
         play_shortcut.triggered.connect(self.toggle_play)
@@ -911,25 +931,37 @@ class MainWindow(QMainWindow):
     def read_reader_state(self, book: Book) -> tuple[int, int | None]:
         try:
             state = json.loads(book.reader_state_path.read_text(encoding="utf-8"))
+            self.last_state_stamp = state_timestamp(book.reader_state_path)
             page = state.get("page", 1)
             page = page if isinstance(page, int) and 1 <= page <= book.page_count else 1
             saved = state.get("paragraph")
+            anchor = " ".join(saved.get("text", "").split()).casefold() if isinstance(saved, dict) else ""
             index = next((i for i, paragraph in enumerate(self.paragraphs)
-                          if isinstance(saved, dict) and paragraph.page == saved.get("page")
-                          and paragraph.index == saved.get("index")), None)
+                          if anchor and paragraph.page == saved.get("page") and
+                          " ".join(paragraph.text.split()).casefold().startswith(anchor)), None)
+            if index is None:
+                index = next((i for i, paragraph in enumerate(self.paragraphs)
+                              if isinstance(saved, dict) and paragraph.page == saved.get("page")
+                              and paragraph.index == saved.get("index")), None)
             return page, index
         except (OSError, ValueError, TypeError, AttributeError):
+            self.last_state_stamp = 0
             return 1, None
 
     def persist_reader_state(self) -> None:
         if not self.book:
             return
+        if state_timestamp(self.book.reader_state_path) > self.last_state_stamp:
+            return
         paragraph = (self.paragraphs[self.resume_index]
                      if self.resume_index is not None and 0 <= self.resume_index < len(self.paragraphs)
                      else None)
+        self.last_state_stamp = max(int(time.time() * 1000), self.last_state_stamp + 1)
         write_json(self.book.reader_state_path, {
             "page": self.current_page,
-            "paragraph": {"page": paragraph.page, "index": paragraph.index} if paragraph else None,
+            "paragraph": {"page": paragraph.page, "index": paragraph.index,
+                          "text": paragraph.text[:512]} if paragraph else None,
+            "updated_at": self.last_state_stamp,
         })
 
     def show_page(self, page: int, *, keep_selection: bool = False) -> None:
@@ -1014,7 +1046,14 @@ class MainWindow(QMainWindow):
         )
 
     def current_voice(self) -> str:
-        return self.settings.value("voice", "pt-BR-FranciscaNeural")
+        selected = self.settings.value("voice", DEFAULT_VOICE)
+        if is_qwen_voice(selected) and selected in installed_qwen_voices().values():
+            return selected
+        try:
+            model_path(selected)
+        except (ValueError, FileNotFoundError):
+            return DEFAULT_VOICE
+        return selected
 
     def open_preferences(self) -> None:
         if self.generation_mode == "export":
@@ -1038,6 +1077,9 @@ class MainWindow(QMainWindow):
                     self.timeline = DurationTimeline(self.book.folder, self.paragraphs, self.current_voice())
                     self.update_timeline_ui()
                 self.now_playing.setText("Voz alterada. Pressione Play para gerar novo áudio.")
+                if is_qwen_voice(old_voice) and self.thread is None:
+                    self.qwen_idle_timer.stop()
+                    stop_qwen()
 
     def start_worker(
         self, entries: list[tuple[int, Paragraph]], *, temporary: bool,
@@ -1055,6 +1097,7 @@ class MainWindow(QMainWindow):
             f"voz={self.current_voice()}, trechos={len(entries)}, exportação={export_label}"
         )
         self.worker = GenerationWorker(self.book, entries, self.current_voice(), temporary, export_label)
+        self.qwen_idle_timer.stop()
         self.worker.progress.connect(self.on_generation_progress)
         self.worker.ready.connect(self.on_audio_ready)
         self.worker.completed.connect(self.on_generation_completed)
@@ -1074,7 +1117,7 @@ class MainWindow(QMainWindow):
             self.update_export_times()
             self.export_timer.start()
             self.status_label.setText("Gerando MP3 permanente…")
-        self.thread = Thread(target=self.worker.run, name="edge-tts-worker")
+        self.thread = Thread(target=self.worker.run, name="local-tts-worker")
         self.thread.start()
 
     def request_play(self, index: int, position: int = 0, autoplay: bool = True) -> None:
@@ -1105,9 +1148,7 @@ class MainWindow(QMainWindow):
                 self.worker.cancelled.set()
         if self.thread is None:
             entries = [(index, self.paragraphs[index])]
-            next_index = self.speakable_index(index + 1)
-            if next_index is not None:
-                entries.append((next_index, self.paragraphs[next_index]))
+            entries.extend(self.buffer_entries(index + 1))
             self.start_worker(entries, temporary=True)
 
     def speakable_index(self, start: int, direction: int = 1) -> int | None:
@@ -1116,13 +1157,28 @@ class MainWindow(QMainWindow):
                 return index
         return None
 
+    def buffer_entries(self, start: int) -> list[tuple[int, Paragraph]]:
+        if not self.book:
+            return []
+        voice = self.current_voice()
+        lookahead = 4 if is_qwen_voice(voice) else 1
+        entries = []
+        index = start
+        for _ in range(lookahead):
+            found = self.speakable_index(index)
+            if found is None:
+                break
+            paragraph = self.paragraphs[found]
+            if playable_audio_path(self.book, voice, paragraph) is None:
+                entries.append((found, paragraph))
+            index = found + 1
+        return entries
+
     def start_buffer(self, index: int) -> None:
-        index = self.speakable_index(index)
-        if (
-            self.book and self.thread is None and index is not None
-            and playable_audio_path(self.book, self.current_voice(), self.paragraphs[index]) is None
-        ):
-            self.start_worker([(index, self.paragraphs[index])], temporary=True)
+        if self.thread is None:
+            entries = self.buffer_entries(index)
+            if entries:
+                self.start_worker(entries, temporary=True)
 
     def play_ready(self, index: int, path: Path, position: int, autoplay: bool) -> None:
         if not self.book:
@@ -1355,6 +1411,12 @@ class MainWindow(QMainWindow):
             self.request_play(index, position, autoplay)
         elif not failed and old_mode == "temp" and self.track_index >= 0:
             self.start_buffer(self.track_index + 1)
+        if self.thread is None:
+            if is_qwen_voice(self.current_voice()):
+                if not self.playback_is_playing:
+                    self.qwen_idle_timer.start(QWEN_IDLE_RELEASE_MS)
+            else:
+                stop_qwen()
 
     def start_export(self, mode: str) -> None:
         if not self.book:
@@ -1428,6 +1490,10 @@ class MainWindow(QMainWindow):
     def on_playback_state(self, state: QMediaPlayer.PlaybackState) -> None:
         playing = state == QMediaPlayer.PlaybackState.PlayingState
         self.playback_is_playing = playing
+        if playing:
+            self.qwen_idle_timer.stop()
+        elif is_qwen_voice(self.current_voice()):
+            self.qwen_idle_timer.start(QWEN_IDLE_RELEASE_MS)
         self.play_pause_button.setIcon(self.transport_icons["pause" if playing else "play"])
         self.play_pause_button.setToolTip("Pausar" if playing else "Reproduzir")
         self.play_pause_button.setAccessibleName("Pausar" if playing else "Reproduzir")
@@ -1438,6 +1504,12 @@ class MainWindow(QMainWindow):
             self.session_ms += round((time.monotonic() - self.session_since) * 1000)
             self.session_since = None
         self.update_session_clock()
+
+    def release_idle_qwen(self) -> None:
+        if self.thread is None and (
+            not self.playback_is_playing or not is_qwen_voice(self.current_voice())
+        ):
+            stop_qwen()
 
     def update_session_clock(self) -> None:
         elapsed = self.session_ms
@@ -1563,8 +1635,99 @@ class MainWindow(QMainWindow):
         self.player.setPlaybackRate(self.speed_rate())
         self.update_timeline_ui()
 
+    def eventFilter(self, watched, event) -> bool:
+        if event.type() == QEvent.Type.KeyPress and not event.isAutoRepeat():
+            key = event.key()
+            expected = self._konami[self._konami_position]
+            if key == expected:
+                self._konami_position += 1
+                if self._konami_position == len(self._konami):
+                    self._konami_position = 0
+                    self.settings.setValue("developer_options", True)
+                    self.developer_action.setVisible(True)
+                    self.statusBar().showMessage("Opções de desenvolvedor habilitadas.", 5000)
+            else:
+                self._konami_position = 1 if key == self._konami[0] else 0
+        return super().eventFilter(watched, event)
+
+    def start_sync_server(self) -> None:
+        if self.sync_server:
+            return
+        token = self.settings.value("sync_token", "") or new_token()
+        self.settings.setValue("sync_token", token)
+        try:
+            server = SyncServer(self.library, token)
+            server.start()
+            self.sync_server = server
+            self.settings.setValue("sync_enabled", True)
+        except OSError as exc:
+            self.settings.setValue("sync_enabled", False)
+            QMessageBox.warning(self, "Sincronização", f"Não foi possível abrir a porta 8765: {exc}")
+
+    def open_developer_options(self) -> None:
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Opções de desenvolvedor")
+        layout = QVBoxLayout(dialog)
+        layout.addWidget(QLabel("Sincronização privada PC → Android via Tailscale Serve"))
+        layout.addWidget(QLabel("No PC, execute: tailscale serve 8765"))
+        layout.addWidget(QLabel("Use o endereço HTTPS exibido pelo Tailscale no Android."))
+        token = self.settings.value("sync_token", "") or new_token()
+        self.settings.setValue("sync_token", token)
+        token_field = QLineEdit(token)
+        token_field.setReadOnly(True)
+        token_field.setEchoMode(QLineEdit.EchoMode.Password)
+        layout.addWidget(QLabel("Token de acesso (copie para o Android):"))
+        layout.addWidget(token_field)
+        reveal = QPushButton("Mostrar token")
+        reveal.clicked.connect(lambda: token_field.setEchoMode(
+            QLineEdit.EchoMode.Normal if token_field.echoMode() == QLineEdit.EchoMode.Password
+            else QLineEdit.EchoMode.Password))
+        layout.addWidget(reveal)
+        toggle = QPushButton("Desativar serviço" if self.sync_server else "Ativar serviço")
+        def toggle_server():
+            if self.sync_server:
+                self.sync_server.stop()
+                self.sync_server = None
+                self.settings.setValue("sync_enabled", False)
+                toggle.setText("Ativar serviço")
+            else:
+                self.start_sync_server()
+                if self.sync_server:
+                    toggle.setText("Desativar serviço")
+        toggle.clicked.connect(toggle_server)
+        layout.addWidget(toggle)
+        close = QPushButton("Fechar")
+        close.clicked.connect(dialog.accept)
+        layout.addWidget(close)
+        dialog.exec()
+
+    def check_remote_state(self) -> None:
+        if not self.sync_server:
+            return
+        if self.player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            return
+        known = {self.book_list.item(i).data(Qt.ItemDataRole.UserRole).id
+                 for i in range(self.book_list.count())}
+        current = {book.id for book in self.library.books()}
+        if current != known:
+            self.load_books(self.book.id if self.book else None)
+        if not self.book:
+            return
+        stamp = state_timestamp(self.book.reader_state_path)
+        if stamp <= self.last_state_stamp:
+            return
+        page, index = self.read_reader_state(self.book)
+        self.resume_index = index
+        self.selected_index = index
+        self.show_page(page, keep_selection=True)
+        self.statusBar().showMessage("Ponto de leitura atualizado pelo Android.", 5000)
+
     def closeEvent(self, event) -> None:
         self.persist_reader_state()
+        if self.sync_server:
+            self.sync_server.stop()
+            self.sync_server = None
+        self.qwen_idle_timer.stop()
         if self.thread is not None:
             self.closing = True
             if self.worker:
@@ -1575,6 +1738,7 @@ class MainWindow(QMainWindow):
         self.player.stop()
         self.player.setSource(QUrl())
         self.player.setAudioOutput(None)
+        stop_qwen()
         for _ in range(25):
             if clear_all_temporary(self.library):
                 break

@@ -8,6 +8,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import imageio_ffmpeg
@@ -19,7 +20,7 @@ from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from pdf_reader.app import MainWindow, clock, generation_error_message
-from pdf_reader.core import audio_path
+from pdf_reader.core import Paragraph, audio_path
 from pdf_reader.viewer import PdfPageView
 
 
@@ -34,13 +35,22 @@ def pump_until(app, predicate, timeout=8):
 
 
 class PlayerFlowTest(unittest.TestCase):
-    def test_edge_tts_403_has_readable_message(self):
-        error = RuntimeError("403, url=wss://speech.platform.bing.com/secret")
-        error.status = 403
-        message = generation_error_message(error)
-        self.assertIn("Edge TTS", message)
-        self.assertIn("HTTP 403", message)
-        self.assertNotIn("wss://", message)
+    def test_qwen_queues_four_paragraphs_ahead_without_regenerating_cached_audio(self):
+        paragraphs = [Paragraph(1, index + 1, f"Parágrafo {index + 1}.")
+                      for index in range(6)]
+        window = SimpleNamespace(
+            book=object(), paragraphs=paragraphs,
+            current_voice=lambda: "qwen3_ryan",
+            speakable_index=lambda start: start if start < len(paragraphs) else None,
+        )
+        with patch("pdf_reader.app.playable_audio_path",
+                   side_effect=lambda _book, _voice, p: Path("cached.mp3") if p.index == 2 else None):
+            entries = MainWindow.buffer_entries(window, 0)
+        self.assertEqual([index for index, _ in entries], [0, 2, 3])
+
+    def test_local_voice_error_has_install_instructions(self):
+        error = FileNotFoundError("Modelo ausente. Execute tools\\install_voices.py")
+        self.assertIn("install_voices.py", generation_error_message(error))
 
     def test_theme_viewer_page_and_pdf_search_without_playback(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -154,7 +164,10 @@ class PlayerFlowTest(unittest.TestCase):
                 window.load_books(second.id)
                 saved = json.loads(first.reader_state_path.read_text(encoding="utf-8"))
                 self.assertEqual(saved["page"], 3)
-                self.assertEqual(saved["paragraph"], {"page": 2, "index": 1})
+                self.assertEqual(saved["paragraph"]["page"], 2)
+                self.assertEqual(saved["paragraph"]["index"], 1)
+                self.assertEqual(saved["paragraph"]["text"], "Livro 1, página 2.")
+                self.assertGreater(saved["updated_at"], 0)
 
                 window.load_books(first.id)
                 self.assertEqual(window.current_page, 3)

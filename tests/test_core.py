@@ -32,7 +32,7 @@ class LibraryFlowTest(unittest.TestCase):
             )
             timeline = DurationTimeline(folder, [Paragraph(1, 1, dotted),
                                                  Paragraph(2, 1, "オーバーロード")],
-                                        "pt-BR-AntonioNeural")
+                                        "pt_BR-cadu-medium")
             self.assertLess(timeline.total_ms(), 4000)
             self.assertEqual(timeline.duration_ms(1), 0)
             self.assertEqual(timeline.locate(timeline.total_ms()), (0, timeline.duration_ms(0) - 1))
@@ -49,10 +49,10 @@ class LibraryFlowTest(unittest.TestCase):
             path = folder / "timing.json"
             data = json.loads(path.read_text(encoding="utf-8"))
             base = data["base_ms"]
-            data["voices"] = {"pt-BR-AntonioNeural": {"0": round(base[0] * 1.1),
+            data["voices"] = {"pt_BR-cadu-medium": {"0": round(base[0] * 1.1),
                                                         "1": round(base[1] * 5)}}
             path.write_text(json.dumps(data), encoding="utf-8")
-            timeline = DurationTimeline(folder, paragraphs, "pt-BR-AntonioNeural")
+            timeline = DurationTimeline(folder, paragraphs, "pt_BR-cadu-medium")
             self.assertLess(timeline.duration_ms(2), base[2] * 1.2)
 
     def test_import_deduplicates_and_exports_page_range(self):
@@ -78,14 +78,14 @@ class LibraryFlowTest(unittest.TestCase):
 
             paragraphs = load_paragraphs(book)
             self.assertTrue((book.folder / "timing.json").is_file())
-            timeline = DurationTimeline(book.folder, paragraphs, "pt-BR-FranciscaNeural")
+            timeline = DurationTimeline(book.folder, paragraphs, "pt_BR-cadu-medium")
             self.assertGreater(timeline.total_ms(), 0)
             self.assertEqual(timeline.total_ms(2), round(timeline.total_ms() / 2))
             index, offset = timeline.locate(timeline.position_ms(2, 200))
             self.assertEqual((index, offset), (2, 200))
             self.assertEqual([item.page for item in paragraphs], [1, 1, 2, 2])
             selected = [item for item in paragraphs if item.page == 2]
-            voice = "pt-BR-FranciscaNeural"
+            voice = "pt_BR-cadu-medium"
             ffmpeg = imageio_ffmpeg.get_ffmpeg_exe()
             for paragraph in selected:
                 target = audio_path(book, voice, paragraph)
