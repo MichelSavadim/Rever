@@ -8,6 +8,17 @@ from pdf_reader.bootstrap import main
 
 
 if __name__ == "__main__":
+    if "--check-startup" in sys.argv:
+        from pdf_reader import diagnostics
+
+        diagnostics.install()
+        try:
+            from pdf_reader.app import MainWindow  # noqa: F401
+        except BaseException:
+            kind, value, tb = sys.exc_info()
+            diagnostics.log_exception(kind, value, tb, "Falha no teste de inicialização do EXE")
+            raise SystemExit(1)
+        raise SystemExit(0)
     if "--check-qwen" in sys.argv:
         from pdf_reader.qwen_backend import VOICES, synthesize_mp3, shutdown
 
