@@ -14,8 +14,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", default="Rever")
     args = parser.parse_args()
-    if not re.fullmatch(r"Rever(?:-\d+\.\d+\.\d+)?", args.name):
-        parser.error("O nome deve ser Rever ou Rever-X.Y.Z")
+    if not re.fullmatch(r"Rever(?:-\d+\.\d+\.\d+(?:-corrigido)?)?", args.name):
+        parser.error("O nome deve ser Rever, Rever-X.Y.Z ou Rever-X.Y.Z-corrigido")
     root = Path(__file__).resolve().parent
     environment = os.environ.copy()
     # Ferramentas de desenvolvimento podem colocar DLLs incompatíveis no PATH.

@@ -1636,7 +1636,9 @@ class MainWindow(QMainWindow):
         self.update_timeline_ui()
 
     def eventFilter(self, watched, event) -> bool:
-        if event.type() == QEvent.Type.KeyPress and not event.isAutoRepeat():
+        focused = QApplication.focusWidget()
+        if (event.type() == QEvent.Type.KeyPress and not event.isAutoRepeat()
+                and watched is (focused or self)):
             key = event.key()
             expected = self._konami[self._konami_position]
             if key == expected:
