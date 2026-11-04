@@ -22,7 +22,7 @@ python -m pdf_reader
 
 ### Sincronização privada
 
-Após habilitar as opções de desenvolvedor com ↑ ↑ ↓ ↓ ← → ← → B A, abra **Configurações → Opções de desenvolvedor**, ative o serviço e copie o token para o Android. Com o Tailscale conectado nos dois aparelhos, execute `tailscale serve 8765` no PC e use no Android o endereço HTTPS exibido pelo comando. O serviço só escuta em `127.0.0.1`; o Tailscale Serve o disponibiliza apenas na sua tailnet. O PC deve permanecer ligado para sincronizar PDFs e pontos de leitura.
+Após habilitar as opções de desenvolvedor com ↑ ↑ ↓ ↓ ← → ← → B A, abra **Configurações → Opções de desenvolvedor**, ative o serviço e copie o token para o Android. Com o Tailscale conectado nos dois aparelhos, execute `tailscale serve 8765` no PC e use no Android o endereço HTTPS exibido pelo comando. O serviço só escuta em `127.0.0.1`; o Tailscale Serve o disponibiliza apenas na sua tailnet. O PC deve permanecer ligado para sincronizar PDFs e pontos de leitura. O estado é gravado quando o parágrafo selecionado ou reproduzido muda; abrir um PDF consulta o estado existente sem criar uma nova posição. O PC verifica atualizações recebidas a cada três segundos. O aparelho que estiver reproduzindo tem prioridade sobre outro que esteja parado. Exclusões completas de PDF são propagadas aos dois aparelhos; ocultar um PDF apenas na biblioteca do PC continua sendo uma ação local.
 
 1. Use **Arquivo → Adicionar PDF à biblioteca** (`Ctrl+O`). O arquivo é copiado para a biblioteca interna.
 2. Selecione o PDF na barra esquerda.
@@ -46,7 +46,7 @@ Execute **Instalar Qwen.cmd** para criar `.venv-qwen` e baixar o modelo oficial 
 
 O [modelo Qwen3-TTS](https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice) é distribuído sob Apache 2.0. Seus MP3s ficam em pastas distintas dos áudios Piper.
 
-O leitor guarda a última página vista e o parágrafo selecionado ou reproduzido em `reader_state.json`, dentro da pasta de cada PDF. Ao voltar ao arquivo ou reiniciar o aplicativo, abre a última página vista; o parágrafo guardado permanece como ponto de partida do Play, mesmo se estiver em outra página. O último PDF aberto também é lembrado.
+O leitor guarda a página e o parágrafo selecionado ou reproduzido em `reader_state.json`, dentro da pasta de cada PDF, quando o parágrafo muda. Ao voltar ao arquivo ou reiniciar o aplicativo, abre a página ligada ao último parágrafo salvo; o parágrafo permanece como ponto de partida do Play. A rolagem isolada não substitui o estado compartilhado. O último PDF aberto também é lembrado.
 
 Em **Arquivo → Excluir PDF selecionado da biblioteca**, escolha entre ocultá-lo da biblioteca mantendo o PDF importado, os áudios e o ponto de leitura, ou apagar toda a pasta desse PDF. Se ocultar, importar o mesmo PDF novamente recupera os arquivos preservados.
 

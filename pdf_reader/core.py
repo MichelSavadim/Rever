@@ -8,6 +8,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Callable
@@ -71,6 +72,11 @@ class Library:
         value = self._catalog().get("last_book_id")
         return value if isinstance(value, str) else None
 
+    def deleted_books(self) -> dict[str, int]:
+        values = self._catalog().get("deleted_ids", {})
+        return {key: value for key, value in values.items()
+                if isinstance(key, str) and isinstance(value, int)} if isinstance(values, dict) else {}
+
     def set_last_book(self, book_id: str | None) -> None:
         catalog = self._catalog()
         catalog["last_book_id"] = book_id
@@ -118,7 +124,11 @@ class Library:
             if book_id in hidden:
                 hidden.remove(book_id)
                 catalog["hidden_ids"] = sorted(hidden)
-                write_json(self.root / "library.json", catalog)
+            deleted = catalog.get("deleted_ids", {})
+            if book_id in deleted:
+                del deleted[book_id]
+                catalog["deleted_ids"] = deleted
+            write_json(self.root / "library.json", catalog)
             return Book(folder=folder, **data)
 
         with pymupdf.open(source) as pdf:
@@ -142,6 +152,12 @@ class Library:
         write_json(folder / "paragraphs.json", [asdict(p) for p in paragraphs])
         write_initial_timing(folder, paragraphs)
         write_json(existing, data)
+        catalog = self._catalog()
+        deleted = catalog.get("deleted_ids", {})
+        if book_id in deleted:
+            del deleted[book_id]
+            catalog["deleted_ids"] = deleted
+            write_json(self.root / "library.json", catalog)
         return Book(folder=folder, **data)
 
     def remove(self, book: Book, *, delete_files: bool) -> None:
@@ -154,11 +170,33 @@ class Library:
         if delete_files:
             shutil.rmtree(folder)
             hidden.discard(book.id)
+            deleted = catalog.get("deleted_ids", {})
+            deleted[book.id] = max(int(time.time() * 1000), deleted.get(book.id, 0) + 1)
+            catalog["deleted_ids"] = deleted
         else:
             clear_temporary(book)
             hidden.add(book.id)
         catalog["hidden_ids"] = sorted(hidden)
         if catalog.get("last_book_id") == book.id:
+            catalog["last_book_id"] = None
+        write_json(self.root / "library.json", catalog)
+
+    def delete_synced(self, book_id: str, timestamp: int) -> None:
+        root = self.root.resolve()
+        folder = self.root / book_id
+        if (len(book_id) != 20 or any(char not in "0123456789abcdef" for char in book_id)
+                or folder.resolve().parent != root):
+            raise ValueError("Identificador inválido")
+        if folder.exists():
+            shutil.rmtree(folder)
+        catalog = self._catalog()
+        deleted = catalog.get("deleted_ids", {})
+        deleted[book_id] = max(timestamp, deleted.get(book_id, 0))
+        catalog["deleted_ids"] = deleted
+        hidden = set(catalog.get("hidden_ids", []))
+        hidden.discard(book_id)
+        catalog["hidden_ids"] = sorted(hidden)
+        if catalog.get("last_book_id") == book_id:
             catalog["last_book_id"] = None
         write_json(self.root / "library.json", catalog)
 

@@ -164,21 +164,21 @@ class PlayerFlowTest(unittest.TestCase):
                 self.assertTrue(pump_until(app, lambda: window.current_page == 3))
                 window.load_books(second.id)
                 saved = json.loads(first.reader_state_path.read_text(encoding="utf-8"))
-                self.assertEqual(saved["page"], 3)
+                self.assertEqual(saved["page"], 2)
                 self.assertEqual(saved["paragraph"]["page"], 2)
                 self.assertEqual(saved["paragraph"]["index"], 1)
                 self.assertEqual(saved["paragraph"]["text"], "Livro 1, página 2.")
                 self.assertGreater(saved["updated_at"], 0)
 
                 window.load_books(first.id)
-                self.assertEqual(window.current_page, 3)
+                self.assertEqual(window.current_page, 2)
                 self.assertEqual(window.resume_index, selected)
                 self.assertEqual(window.selected_index, selected)
                 self.assertIsNotNone(window.viewer._highlight)
                 with patch.object(window, "request_play") as request_play:
                     window.toggle_play()
                 request_play.assert_called_once_with(selected)
-                self.assertEqual(window.current_page, 3)
+                self.assertEqual(window.current_page, 2)
                 window.load_books(second.id)
                 window.show_page(2)
                 window.close()
@@ -187,7 +187,7 @@ class PlayerFlowTest(unittest.TestCase):
                 window = MainWindow()
                 window.show()
                 self.assertTrue(pump_until(app, lambda: window.book is not None
-                                           and window.book.id == second.id and window.current_page == 2))
+                                           and window.book.id == second.id and window.current_page == 1))
                 self.assertEqual(window.library.last_book_id(), second.id)
                 self.assertTrue(first.reader_state_path.exists())
                 self.assertTrue(window.remove_book_action.isEnabled())
@@ -207,12 +207,12 @@ class PlayerFlowTest(unittest.TestCase):
                 with patch.object(window, "confirm_remove_book", return_value="keep"):
                     window.remove_selected_book()
                 self.assertEqual(window.book.id, first.id)
-                self.assertTrue(second.reader_state_path.exists())
+                self.assertFalse(second.reader_state_path.exists())
                 self.assertNotIn(second.id, [book.id for book in window.library.books()])
 
                 restored = window.library.import_pdf(sources[1])
                 window.load_books(restored.id)
-                self.assertEqual(window.current_page, 2)
+                self.assertEqual(window.current_page, 1)
                 with patch.object(window, "confirm_remove_book", return_value="delete"):
                     window.remove_selected_book()
                 self.assertFalse(second.folder.exists())

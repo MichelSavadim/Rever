@@ -224,7 +224,7 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, self.start_sync_server)
         self.sync_state_timer = QTimer(self)
         self.sync_state_timer.timeout.connect(self.check_remote_state)
-        self.sync_state_timer.start(2000)
+        self.sync_state_timer.start(3000)
         QTimer.singleShot(0, lambda: self.horizontal_splitter.setSizes([230, 820, 300]))
         QTimer.singleShot(0, lambda: self.vertical_splitter.setSizes([640, 150]))
 
@@ -846,7 +846,6 @@ class MainWindow(QMainWindow):
     def finish_remove_book(self, book: Book, delete_files: bool) -> None:
         if self.book != book:
             return
-        self.persist_reader_state()
         self.player.stop()
         self.player.setSource(QUrl())
         self.current_audio = None
@@ -888,7 +887,6 @@ class MainWindow(QMainWindow):
         if current is None:
             return
         old_book = self.book
-        self.persist_reader_state()
         if self.worker and self.generation_mode == "temp":
             self.worker.cancelled.set()
         self.pending_play = None
@@ -951,15 +949,19 @@ class MainWindow(QMainWindow):
             self.last_state_stamp = 0
             return 1, None
 
-    def persist_reader_state(self) -> None:
+    def persist_reader_state(self, *, playing: bool = False) -> None:
         if not self.book:
             return
-        if state_timestamp(self.book.reader_state_path) > self.last_state_stamp:
+        if not playing and self.sync_server and self.sync_server.android_is_playing(self.book.id):
+            return
+        disk_stamp = state_timestamp(self.book.reader_state_path)
+        if disk_stamp > self.last_state_stamp and not playing:
             return
         paragraph = (self.paragraphs[self.resume_index]
                      if self.resume_index is not None and 0 <= self.resume_index < len(self.paragraphs)
                      else None)
-        self.last_state_stamp = max(int(time.time() * 1000), self.last_state_stamp + 1)
+        self.last_state_stamp = max(int(time.time() * 1000), disk_stamp + 1,
+                                    self.last_state_stamp + 1)
         write_json(self.book.reader_state_path, {
             "page": self.current_page,
             "paragraph": {"page": paragraph.page, "index": paragraph.index,
@@ -978,13 +980,11 @@ class MainWindow(QMainWindow):
         self.current_page = page
         self.viewer_page_input.setText(str(page))
         self.update_highlight()
-        self.persist_reader_state()
 
     def on_visible_page_changed(self, page: int) -> None:
         if self.book:
             self.current_page = page
             self.viewer_page_input.setText(str(page))
-            self.persist_reader_state()
 
     def update_highlight(self) -> None:
         if self.select_button.isChecked() and self.selected_index is not None:
@@ -1014,7 +1014,6 @@ class MainWindow(QMainWindow):
             self.selected_index = None
             if self.track_index < 0:
                 self.resume_index = None
-            self.persist_reader_state()
         self.update_highlight()
 
     def on_page_clicked(self, page: int, point) -> None:
@@ -1135,7 +1134,7 @@ class MainWindow(QMainWindow):
                 return
             index, position = next_index, 0
         self.resume_index = index
-        self.persist_reader_state()
+        self.persist_reader_state(playing=autoplay)
         path = playable_audio_path(self.book, self.current_voice(), self.paragraphs[index])
         if path:
             self.pending_play = None
@@ -1213,7 +1212,6 @@ class MainWindow(QMainWindow):
             self.selected_index = index
         self.update_highlight()
         self.update_timeline_ui()
-        self.persist_reader_state()
         if previous and previous != path and "temp_audio" in previous.parts:
             QTimer.singleShot(250, lambda old=previous: self.remove_temp_file(old))
 
@@ -1663,7 +1661,9 @@ class MainWindow(QMainWindow):
         token = self.settings.value("sync_token", "") or new_token()
         self.settings.setValue("sync_token", token)
         try:
-            server = SyncServer(self.library, token)
+            server = SyncServer(self.library, token,
+                playing_book_id=lambda: self.book.id if self.book and
+                (self.playback_is_playing or self.pending_play) else None)
             server.start()
             self.sync_server = server
             self.settings.setValue("sync_enabled", True)
@@ -1717,6 +1717,18 @@ class MainWindow(QMainWindow):
                  for i in range(self.book_list.count())}
         current = {book.id for book in self.library.books()}
         if current != known:
+            if self.book and self.book.id not in current:
+                self.player.stop()
+                self.player.setSource(QUrl())
+                self.viewer.clear_pdf()
+                self.book = None
+                self.paragraphs = []
+                self.resume_index = None
+                self.selected_index = None
+                self.track_index = -1
+                self.title_label.setText("Selecione um PDF")
+                self.info_label.setText("")
+                self.now_playing.setText("Nenhum PDF selecionado")
             self.load_books(self.book.id if self.book else None)
         if not self.book:
             return
@@ -1730,7 +1742,6 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage("Ponto de leitura atualizado pelo Android.", 5000)
 
     def closeEvent(self, event) -> None:
-        self.persist_reader_state()
         if self.sync_server:
             self.sync_server.stop()
             self.sync_server = None
