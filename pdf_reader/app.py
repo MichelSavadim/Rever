@@ -28,6 +28,7 @@ from .core import (
 from . import diagnostics
 from .paths import data_root, resource_root
 from .local_tts import DEFAULT_VOICE, installed_voices, model_path
+from .edge_backend import VOICES as EDGE_VOICES, is_edge_voice
 from .qwen_backend import installed_voices as installed_qwen_voices, is_qwen_voice, shutdown as stop_qwen
 from .timing import DurationTimeline
 from .timing import is_speakable
@@ -59,13 +60,15 @@ class PreferencesDialog(QDialog):
         form = QFormLayout()
         self.voices = installed_voices()
         self.voices.setdefault("Português (Brasil)", {}).update(installed_qwen_voices())
+        for language, voices in EDGE_VOICES.items():
+            self.voices.setdefault(language, {}).update(voices)
         self.language = QComboBox()
         self.language.addItems(self.voices)
         self.voice = QComboBox()
         form.addRow("Idioma da voz", self.language)
         form.addRow("Voz", self.voice)
         layout.addLayout(form)
-        layout.addWidget(QLabel("Piper e Qwen geram áudio localmente. Para adicionar vozes, consulte o README."))
+        layout.addWidget(QLabel("Piper e Qwen são locais; Edge TTS requer internet."))
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
         )
@@ -1047,6 +1050,8 @@ class MainWindow(QMainWindow):
 
     def current_voice(self) -> str:
         selected = self.settings.value("voice", DEFAULT_VOICE)
+        if is_edge_voice(selected):
+            return selected
         if is_qwen_voice(selected) and selected in installed_qwen_voices().values():
             return selected
         try:

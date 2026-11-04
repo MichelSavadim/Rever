@@ -377,7 +377,9 @@ class PlayerFlowTest(unittest.TestCase):
             source = Path(temporary) / "paginas.pdf"
             pdf = pymupdf.open()
             for number in range(3):
-                pdf.new_page().insert_text((72, 72), f"Página {number + 1}")
+                page = pdf.new_page()
+                page.draw_rect(page.rect, color=None, fill=(1, 1, 1))
+                page.insert_text((72, 72), f"Página {number + 1}")
             pdf.save(source)
             pdf.close()
             app = QApplication.instance() or QApplication([])
@@ -390,10 +392,9 @@ class PlayerFlowTest(unittest.TestCase):
             viewer.show_page(2)
             self.assertTrue(pump_until(app, lambda: viewer._current_page == 2))
             viewer.set_highlight(2, (70, 60, 180, 85))
-            self.assertLess(viewer._highlight.zValue(), viewer._page_items[2].zValue())
+            self.assertGreater(viewer._highlight.zValue(), viewer._page_items[2].zValue())
             image = viewer._page_items[2].pixmap().toImage()
-            self.assertTrue(image.hasAlphaChannel())
-            self.assertEqual(image.pixelColor(20, 20).alpha(), 0)
+            self.assertEqual(image.pixelColor(20, 20).alpha(), 255)
             viewer.close()
 
     def test_repeated_buffer_workers_finish_safely(self):

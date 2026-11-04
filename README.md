@@ -1,6 +1,6 @@
 # Rever
 
-Aplicativo de desktop em Python para Windows. Importa PDFs com texto selecionável, exibe as páginas e gera narração local em MP3 com Piper ou Qwen3-TTS.
+Aplicativo de desktop em Python para Windows. Importa PDFs com texto selecionável, exibe as páginas e gera narração em MP3 com Piper, Qwen3-TTS ou Edge TTS.
 
 Depois da instalação, abra **Iniciar Rever.cmd** com dois cliques para iniciar o aplicativo.
 
@@ -26,7 +26,7 @@ Após habilitar as opções de desenvolvedor com ↑ ↑ ↓ ↓ ← → ← →
 
 1. Use **Arquivo → Adicionar PDF à biblioteca** (`Ctrl+O`). O arquivo é copiado para a biblioteca interna.
 2. Selecione o PDF na barra esquerda.
-3. Em **Configurações → Preferências de voz** (`Ctrl+,`), escolha entre as vozes instaladas. Em português brasileiro, Cadu, Faber e Jeff usam modelos Piper de qualidade média; Edresson usa um modelo de qualidade baixa. Para instalar as quatro vozes brasileiras, execute `python tools\install_voices.py --pt-br-all`. Para incluir também inglês e espanhol, execute `python tools\install_voices.py --all`. As vozes locais Qwen Ryan e Serena aparecem após executar **Instalar Qwen.cmd** e reiniciar o aplicativo.
+3. Em **Configurações → Preferências de voz** (`Ctrl+,`), escolha a voz. Em português brasileiro, Cadu, Faber e Jeff usam modelos Piper de qualidade média; Edresson usa um modelo de qualidade baixa. Para instalar as quatro vozes brasileiras, execute `python tools\install_voices.py --pt-br-all`. Para incluir também inglês e espanhol, execute `python tools\install_voices.py --all`. As vozes locais Qwen Ryan e Serena aparecem após executar **Instalar Qwen.cmd** e reiniciar o aplicativo. As vozes **Edge TTS · online** exigem internet e enviam o texto de cada trecho ao serviço de voz; os MP3s já gerados continuam disponíveis sem conexão.
 4. Pressione **Play**. O áudio do parágrafo atual é gerado sob demanda e o próximo é preparado como buffer. O destaque amarelo acompanha o parágrafo reproduzido mesmo com a ferramenta de seleção desligada. Ative **Selecionar parágrafo** e clique no texto para começar de outro ponto.
    Os controles do player usam ícones para Play/Pause, saltos de 10 segundos, parágrafo e página. O ícone central alterna entre Play e Pause conforme a reprodução.
 5. Use **Gerar MP3 completo** ou escolha um intervalo de páginas para criar um arquivo permanente. O botão **Cancelar geração**, o **Tempo decorrido** e o **Tempo estimado de conclusão** aparecem somente durante a geração. Ao cancelar, escolha entre continuar, cancelar e apagar os trechos criados nesta tentativa, ou cancelar e preservar esses trechos. Áudios anteriores são preservados e nenhum MP3 final incompleto é publicado. O caminho do arquivo concluído aparece no painel direito, com um botão para abri-lo.
@@ -38,7 +38,7 @@ O menu **Configurações → Atalhos de teclado** mostra as teclas disponíveis.
 
 A biblioteca fica em `data/library` dentro da pasta do projeto. Cada PDF recebe uma pasta identificada pelo conteúdo do arquivo, com `document.pdf`, `thumbnail.png`, `paragraphs.json`, `audio` (trechos permanentes usados nas exportações), `exports` (MP3s completos ou por intervalo) e `temp_audio` durante a reprodução. Ao trocar de PDF ou fechar o aplicativo, os arquivos temporários são removidos. A biblioteca da primeira versão em `%LOCALAPPDATA%\PDFReaderTTS\library` é copiada automaticamente na primeira abertura, se existir.
 
-Os MP3s criados anteriormente com Edge TTS permanecem na biblioteca. Como a voz Piper tem outro identificador, novos trechos são gerados em pastas separadas; as exportações antigas continuam acessíveis.
+Cada motor e voz guarda seus trechos em uma pasta própria. MP3s e exportações anteriores permanecem na biblioteca.
 
 ### Qwen TTS gratuito e local
 

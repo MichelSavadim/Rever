@@ -116,7 +116,8 @@ class PdfPageView(QGraphicsView):
         self._highlight = self.scene().addRect(
             rect, QPen(Qt.PenStyle.NoPen), QBrush(QColor(255, 215, 0, 105))
         )
-        self._highlight.setZValue(-1)
+        # Alguns PDFs pintam um fundo branco opaco; atrás do pixmap o destaque desaparece.
+        self._highlight.setZValue(1)
         if reveal:
             self.ensureVisible(rect, 30, 45)
 

@@ -16,6 +16,7 @@ import imageio_ffmpeg
 import pymupdf
 
 from .local_tts import VOICES, synthesize_mp3
+from .edge_backend import is_edge_voice, synthesize_mp3 as synthesize_edge_mp3
 from .qwen_backend import is_qwen_voice, synthesize_mp3 as synthesize_qwen_mp3
 from .timing import is_speakable, normalize_speech_text, write_initial_timing
 
@@ -252,6 +253,8 @@ def generate_audio(
                     speech_text = normalize_speech_text(paragraph.text)
                     if is_qwen_voice(voice):
                         synthesize_qwen_mp3(speech_text, voice, part_file, cancelled)
+                    elif is_edge_voice(voice):
+                        synthesize_edge_mp3(speech_text, voice, part_file)
                     else:
                         synthesize_mp3(speech_text, voice, part_file)
                 if cancelled():
