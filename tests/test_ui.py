@@ -15,7 +15,8 @@ import imageio_ffmpeg
 import pymupdf
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-from PySide6.QtCore import QPoint, QPointF, QTimer
+from PySide6.QtCore import QPoint, QPointF, QRectF, QTimer
+from PySide6.QtGui import QImage, QPainter
 from PySide6.QtMultimedia import QMediaPlayer
 from PySide6.QtWidgets import QApplication, QMessageBox
 
@@ -391,10 +392,28 @@ class PlayerFlowTest(unittest.TestCase):
             self.assertEqual(len(viewer._page_rects), 3)
             viewer.show_page(2)
             self.assertTrue(pump_until(app, lambda: viewer._current_page == 2))
+            page_rect = viewer._page_rects[2]
+
+            def rendered_page_top():
+                result = QImage(400, 200, QImage.Format.Format_ARGB32_Premultiplied)
+                result.fill(0xffffffff)
+                painter = QPainter(result)
+                viewer.scene().render(painter, QRectF(0, 0, 400, 200),
+                                      QRectF(page_rect.left(), page_rect.top(), 400, 200))
+                painter.end()
+                return result
+
+            before = rendered_page_top()
             viewer.set_highlight(2, (70, 60, 180, 85))
             self.assertGreater(viewer._highlight.zValue(), viewer._page_items[2].zValue())
-            image = viewer._page_items[2].pixmap().toImage()
-            self.assertEqual(image.pixelColor(20, 20).alpha(), 255)
+            after = rendered_page_top()
+            paper = after.pixelColor(300, 145)
+            self.assertLess(paper.blue(), before.pixelColor(300, 145).blue() - 20)
+            letters = [(x, y) for y in range(125, 150) for x in range(145, 215)
+                       if before.pixelColor(x, y).red() < 60]
+            self.assertTrue(letters)
+            x, y = letters[0]
+            self.assertLess(after.pixelColor(x, y).red(), 60)
             viewer.close()
 
     def test_repeated_buffer_workers_finish_safely(self):

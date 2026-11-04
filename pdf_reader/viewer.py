@@ -6,12 +6,22 @@ from pathlib import Path
 
 import pymupdf
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import QBrush, QColor, QPen, QPixmap
-from PySide6.QtWidgets import QGraphicsScene, QGraphicsView
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
+from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
 
 RENDER_SCALE = 2.0
 PAGE_GAP = 24.0
+
+
+class ParagraphHighlight(QGraphicsRectItem):
+    """Coloriza o papel, preservando as letras escuras do PDF."""
+
+    def paint(self, painter: QPainter, option, widget=None) -> None:
+        painter.save()
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Multiply)
+        painter.fillRect(self.rect(), QColor(255, 215, 0, 105))
+        painter.restore()
 
 
 class PdfPageView(QGraphicsView):
@@ -113,10 +123,9 @@ class PdfPageView(QGraphicsView):
         x0, y0, x1, y1 = bbox
         rect = QRectF(page.left() + x0 * RENDER_SCALE, page.top() + y0 * RENDER_SCALE,
                       (x1 - x0) * RENDER_SCALE, (y1 - y0) * RENDER_SCALE)
-        self._highlight = self.scene().addRect(
-            rect, QPen(Qt.PenStyle.NoPen), QBrush(QColor(255, 215, 0, 105))
-        )
-        # Alguns PDFs pintam um fundo branco opaco; atrás do pixmap o destaque desaparece.
+        self._highlight = ParagraphHighlight(rect)
+        self.scene().addItem(self._highlight)
+        # A composição Multiply colore também fundos opacos sem cobrir as letras.
         self._highlight.setZValue(1)
         if reveal:
             self.ensureVisible(rect, 30, 45)
