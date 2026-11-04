@@ -42,6 +42,7 @@ class SyncServerTest(unittest.TestCase):
 
                 manifest = request("/manifest")
                 self.assertEqual(manifest["books"][0]["id"], book_id)
+                self.assertEqual(manifest["hidden"], [])
                 path = f"/books/{book_id}/state"
                 latest = {"page": 2, "paragraph": {"page": 2, "index": 1},
                           "updated_at": 2000}

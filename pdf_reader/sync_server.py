@@ -87,7 +87,8 @@ class SyncServer:
                 if path == "/manifest":
                     owner.report_android_playback(self.headers.get("X-Rever-Playing-Book"))
                     self.respond(200, {"version": 2, "playing_book_id": owner.playing_book_id(),
-                        "deleted": owner.library.deleted_books(), "books": [
+                        "deleted": owner.library.deleted_books(),
+                        "hidden": sorted(owner.library.hidden_books()), "books": [
                         {"id": book.id, "title": book.title, "page_count": book.page_count,
                          "added_at": int((book.folder / "book.json").stat().st_mtime * 1000),
                          "pdf_size": book.pdf_path.stat().st_size,
@@ -200,6 +201,9 @@ class SyncServer:
                     length = int(self.headers.get("Content-Length", "0"))
                     if not 0 < length <= 500 * 1024 * 1024:
                         raise ValueError("Tamanho inválido")
+                    if parts[1] in owner.library.hidden_books():
+                        self.respond(409, {"error": "PDF oculto no PC"})
+                        return
                     added_at = int(self.headers.get("X-Rever-Added-At", "0"))
                     deleted_at = owner.library.deleted_books().get(parts[1], 0)
                     if deleted_at and added_at <= deleted_at:

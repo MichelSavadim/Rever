@@ -77,6 +77,10 @@ class Library:
         return {key: value for key, value in values.items()
                 if isinstance(key, str) and isinstance(value, int)} if isinstance(values, dict) else {}
 
+    def hidden_books(self) -> set[str]:
+        values = self._catalog().get("hidden_ids", [])
+        return {value for value in values if isinstance(value, str)} if isinstance(values, list) else set()
+
     def set_last_book(self, book_id: str | None) -> None:
         catalog = self._catalog()
         catalog["last_book_id"] = book_id
